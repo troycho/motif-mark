@@ -17,17 +17,17 @@ TEXT_OFFSET = 3  # Space between rectangle and text
 class Motif:
 
     MOTIF_HEIGHT = 10  # Height of motif rectangle
-    TRANSPARENCY = 0.7  # Set transparency level (0 = fully transparent, 1 = fully opaque)
+    TRANSPARENCY = 0.7  # 0 = fully transparent, 1 = fully opaque
 
     def __init__(self, start, stop, color):
         self.start = start
         self.stop = stop
-        self.color = color  # (R, G, B) tuple
+        self.color = color  # (R,G,B) tuple
 
     def draw(self, ctx, y_position):
         ctx.set_antialias(cairo.ANTIALIAS_NONE)  
         
-        # Use RGBA (adds transparency)
+        # Adjust transparency to visualize overlapping motifs
         ctx.set_source_rgba(self.color[0], self.color[1], self.color[2], self.TRANSPARENCY)  
 
         # Draw the motif rectangle
@@ -51,7 +51,7 @@ class Exon:
     
     def draw(self, ctx, y_position):
         ctx.set_antialias(cairo.ANTIALIAS_NONE)  # Disable anti-aliasing
-        ctx.set_source_rgb(*self.EXON_COLOR)  # Set fill color
+        ctx.set_source_rgb(*self.EXON_COLOR) 
         ctx.rectangle(self.start + LEFT_PADDING, y_position - self.EXON_HEIGHT / 2, 
                       self.stop - self.start, self.EXON_HEIGHT)
         ctx.fill()
@@ -76,9 +76,9 @@ class Gene:
         ctx.stroke()
         ctx.set_antialias(cairo.ANTIALIAS_DEFAULT)
 
-        # Draw gene name above the line
+        # Draw gene name (FASTA header) above the gene group
         ctx.set_source_rgb(0, 0, 0)
-        ctx.select_font_face("Arial") #cairo.FONT_SLANT_NORMAL
+        ctx.select_font_face("Arial")
         ctx.set_font_size(18)
         ctx.move_to(self.start + LEFT_PADDING, y_position - 20)
         ctx.show_text(self.name)
@@ -87,7 +87,7 @@ class Gene:
         return f"Gene name: {self.name}"
 
 class GeneGroup:
-    # global class variable that should store all instantiated objects
+    # Stores all instantiated gene_group objects
     GENEGROUP_LIST = []
 
     def __init__(self, exon: Exon, motifs: list[Motif], gene: Gene):
@@ -106,7 +106,7 @@ class GeneGroup:
         return f"Genegroup = Exon: {self.exon}\nMotifs: {self.motifs}\nGene: {self.gene}"
 
 def get_args():
-    parser = argparse.ArgumentParser(description="Visualize protein binding motifs in gene sequences")
+    parser = argparse.ArgumentParser(description="Visualize protein binding motifs in nucleic acid sequences")
     parser.add_argument("-f", "--fasta", help="Input fasta file")
     parser.add_argument("-m", "--motifs", help="Input motifs file")
     return parser.parse_args()
@@ -128,6 +128,7 @@ def oneline_fasta(file: str, out_file: str) -> None:
 def build_regex(motif: str) -> str:
     '''Returns a regex pattern that matches all possible combinations of
     the input motif sequence (which needs to be all lowercase).'''
+    # dict contains regex patterns for each ambiguous nucleotide base
     mapping = {'y': '[ctu]',
                't': '[ut]',
                'u': '[ut]',
@@ -142,7 +143,7 @@ def build_regex(motif: str) -> str:
                'd': '[agt]',
                'n': '[atcgu]'}
 
-    # 'y' can be any pyrimidine base; keep all other bases the same
+    # replace ambiguous bases with regex; keep all other bases the same
     pattern = ''.join(mapping.get(base, base) for base in motif)
     return pattern
 
@@ -163,7 +164,6 @@ def find_motif(seq: str, motif: str) -> list:
 if __name__ == "__main__":
     args = get_args()
 
-    # UNCOMMENT THE LINE BELOW BEFORE FINAL SUBMISSION
     oneline_fasta(args.fasta, f"oneline_{args.fasta}")
 
     # 5 RGB colors
@@ -173,7 +173,7 @@ if __name__ == "__main__":
                  (0.996, 0.380, 0),
                  (1, 0.690, 0)}
     
-    # Assign a different color code to each motif
+    # Assign a different color code to each motif using a dict
     motif_dict: dict = {}
 
     with open(args.motifs, "r") as fh:
@@ -182,6 +182,7 @@ if __name__ == "__main__":
             motif_dict[line] = random.choice(list(color_set))
             color_set.remove(motif_dict[line])
 
+    # Read in FASTA file and instantiate all Motif, Gene, Exon, and GeneGroup objects
     with open(f"oneline_{args.fasta}", "r") as fh:
         record: list = [] # to hold current record
         for i, line in enumerate(fh):
@@ -204,8 +205,9 @@ if __name__ == "__main__":
                 gene_group = GeneGroup(exon, motif_objects, gene)
                 record.clear()
 
-    # Pycairo figure
-    WIDTH = 1000
+    # Draw Pycairo figure
+    # Set dimensions of canvas
+    WIDTH = 1040
     HEIGHT = 100 + len(GeneGroup.GENEGROUP_LIST) * 70  # Dynamic height
     
     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, WIDTH, HEIGHT)
@@ -220,7 +222,7 @@ if __name__ == "__main__":
     y_padding = 50
     y_pos = 0
 
-    # Scale factor (adjust this to fit the longest sequence in width)
+    # Scale factor (adjusted to fit the longest sequence in width)
     max_gene_length = max(gene_group.gene.stop for gene_group in GeneGroup.GENEGROUP_LIST)
     scale_factor = (WIDTH - 2 * x_padding) / max_gene_length
 
@@ -241,7 +243,7 @@ if __name__ == "__main__":
     x_start = 5 
     y_start = y_pos + 50 
 
-    ITEM_SPACING = 130  # Space between legend elements
+    ITEM_SPACING = 130  # Horizontal space between legend elements
 
     # Gene legend
     ctx.set_source_rgb(0, 0, 0)
@@ -260,7 +262,7 @@ if __name__ == "__main__":
     ctx.move_to(x_start + LEGEND_RECT_WIDTH + TEXT_OFFSET, y_start + 3)
     ctx.show_text("Exon")
 
-    x_start += ITEM_SPACING  # Move right for next item
+    x_start += ITEM_SPACING  
 
     # Draw Motif Legends (each motif horizontally aligned)
     for motif, color in motif_dict.items():
@@ -270,8 +272,8 @@ if __name__ == "__main__":
         ctx.move_to(x_start + LEGEND_RECT_WIDTH + TEXT_OFFSET, y_start + 3)
         ctx.show_text(motif)
 
-        x_start += ITEM_SPACING  # Move right for the next item
+        x_start += ITEM_SPACING  
 
-    # Save the figure
+    # Save the figure to PNG format with required prefix
     prefix = args.fasta.split(".")
     surface.write_to_png(f"{prefix[0]}.png")
